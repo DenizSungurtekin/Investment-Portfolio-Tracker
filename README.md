@@ -108,8 +108,8 @@ npm run dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| POSTGRES_USER | Database username | deniz |
-| POSTGRES_PASSWORD | Database password | 1227 |
+| POSTGRES_USER | Database username | - |
+| POSTGRES_PASSWORD | Database password | - |
 | POSTGRES_DB | Database name | investments |
 | PGADMIN_EMAIL | pgAdmin login email | - |
 | PGADMIN_PASSWORD | pgAdmin login password | - |
