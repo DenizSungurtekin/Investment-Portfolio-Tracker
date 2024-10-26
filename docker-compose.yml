@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yourpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-mydatabase}
+      PGDATA: /data/postgres
+    volumes:
+      - ./data/postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    volumes:
+      - ./data/pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: investment_app
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+      - ./.env:/app/.env
+      - ./ingest_fake_data.py:/app/ingest_fake_data.py
+      - type: tmpfs
+        target: /app/node_modules
+    ports:
+      - "5173:5173"
+      - "5000:5000"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-yourpassword}
+      - DB_NAME=${POSTGRES_DB:-mydatabase}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  app_network:
+    driver: bridge
