@@ -93,11 +93,27 @@ def create_custom_types(conn):
         raise
 
 
-def create_fake_investments_table(conn):
-    """Create the investments_fake table"""
+def create_investment_tables(conn):
+    """Create both investments and investments_fake tables"""
     try:
         with conn.cursor() as cur:
+            # Create investments table if it doesn't exist
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS investments (
+                    investment_id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    provider VARCHAR(50) NOT NULL,
+                    investment_type investment_type NOT NULL,
+                    investment_name VARCHAR(100) NOT NULL,
+                    amount NUMERIC(12,2) NOT NULL,
+                    currency currency_type NOT NULL,
+                    unit NUMERIC(12,4),
+                    notes TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+
+                -- Drop and recreate investments_fake table
                 DROP TABLE IF EXISTS investments_fake;
 
                 CREATE TABLE investments_fake (
@@ -116,7 +132,7 @@ def create_fake_investments_table(conn):
             """)
         conn.commit()
     except Exception as e:
-        print(f"Error creating table: {e}")
+        print(f"Error creating tables: {e}")
         conn.rollback()
         raise
 
@@ -203,8 +219,8 @@ def main():
         # Create custom types
         create_custom_types(conn)
 
-        # Create fake investments table
-        create_fake_investments_table(conn)
+        # Create both investment tables
+        create_investment_tables(conn)
 
         # Generate and insert fake data
         fake_data = generate_fake_data()

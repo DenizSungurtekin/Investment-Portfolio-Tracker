@@ -106,6 +106,13 @@ npm run dev
 
 ## Configuration
 
+### Analyse your own investments
+
+Add records of your own investments with the add button or by copying samples from previous month and editing them.
+
+![Demo](./img/demo1.png)
+![Demo](./img/demo3.png)
+
 ### Environment Variables
 
 | Variable | Description | Default |
