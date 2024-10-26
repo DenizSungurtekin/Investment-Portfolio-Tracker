@@ -4,18 +4,18 @@ services:
     container_name: postgres_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yourpassword}
-      POSTGRES_DB: ${POSTGRES_DB:-mydatabase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-1227}
+      POSTGRES_DB: ${POSTGRES_DB:-investments}
       PGDATA: /data/postgres
     volumes:
-      - ./data/postgres:/data/postgres
+      - postgres_data:/data/postgres
     ports:
       - "5432:5432"
     networks:
       - app_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-investments}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,7 +27,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     volumes:
-      - ./data/pgadmin:/var/lib/pgadmin
+      - pgadmin_data:/var/lib/pgadmin
     ports:
       - "5050:80"
     networks:
@@ -55,8 +55,8 @@ services:
     environment:
       - VITE_API_URL=http://localhost:5000
       - DB_USER=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-yourpassword}
-      - DB_NAME=${POSTGRES_DB:-mydatabase}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-1227}
+      - DB_NAME=${POSTGRES_DB:-investments}
       - DB_HOST=postgres
       - DB_PORT=5432
     networks:
@@ -69,3 +69,7 @@ services:
 networks:
   app_network:
     driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
