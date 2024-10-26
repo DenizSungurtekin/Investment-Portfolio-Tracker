@@ -12,7 +12,7 @@ RUN mkdir -p /scripts
 COPY package*.json ./
 
 # Install Node.js dependencies globally
-RUN npm install -g concurrently
+RUN npm install -g concurrently vite
 RUN npm install
 
 # Create a backup of node_modules that will be copied to tmpfs
