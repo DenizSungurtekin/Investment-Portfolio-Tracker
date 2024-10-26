@@ -1,5 +1,7 @@
 # Investment Portfolio Tracker
 
+![Demo](./image/demo.png)
+
 A full-stack application for tracking and managing investment portfolios with real-time visualization and analytics.
 
 ## Features
