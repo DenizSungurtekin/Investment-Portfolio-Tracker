@@ -11,9 +11,9 @@ RUN mkdir -p /scripts
 # Copy package files first
 COPY package*.json ./
 
-# Install Node.js dependencies
+# Install Node.js dependencies globally
+RUN npm install -g concurrently
 RUN npm install
-RUN npm install @radix-ui/react-select --save
 
 # Create a backup of node_modules that will be copied to tmpfs
 RUN cp -r node_modules node_modules.bak
@@ -28,13 +28,14 @@ ENV PATH="/app/venv/bin:$PATH"
 # Install Python dependencies in virtual environment
 RUN . /app/venv/bin/activate && pip install -r requirements.txt
 
-# Modified startup script to ensure node_modules is copied before running npm commands
+# Modified startup script to ensure correct PATH and node_modules setup
 RUN printf '#!/bin/sh\n\
 . /app/venv/bin/activate\n\
 python3 ingest_fake_data.py\n\
+rm -rf /app/node_modules/*\n\
 cp -r /app/node_modules.bak/* /app/node_modules/\n\
-PATH="/app/node_modules/.bin:$PATH"\n\
-npm run dev\n' > /scripts/start.sh && \
+export PATH="/app/node_modules/.bin:$PATH"\n\
+cd /app && concurrently "vite --host 0.0.0.0" "node src/backend/server.js"\n' > /scripts/start.sh && \
     chmod +x /scripts/start.sh
 
 # Expose ports
