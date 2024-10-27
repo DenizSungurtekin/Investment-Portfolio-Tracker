@@ -11,8 +11,9 @@ RUN mkdir -p /scripts
 # Copy package files first
 COPY package*.json ./
 
-# Install Node.js dependencies
+# Install dependencies
 RUN npm install
+RUN npm install -g concurrently  # Install concurrently globally
 
 # Create a backup of node_modules that will be copied to tmpfs
 RUN cp -r node_modules /scripts/node_modules.bak
@@ -27,20 +28,16 @@ ENV PATH="/app/venv/bin:$PATH"
 # Install Python dependencies in virtual environment
 RUN . /app/venv/bin/activate && pip install -r requirements.txt
 
-# Modified startup script with better node_modules handling
+# Modified startup script to use full path to concurrently
 RUN printf '#!/bin/sh\n\
 . /app/venv/bin/activate\n\
 python3 ingest_fake_data.py\n\
-# Ensure clean node_modules in tmpfs\n\
 rm -rf /app/node_modules\n\
 cp -r /scripts/node_modules.bak /app/node_modules\n\
-# Ensure Vite is available in PATH\n\
-export PATH="/app/node_modules/.bin:$PATH"\n\
-cd /app && NODE_ENV=development concurrently "vite --host 0.0.0.0" "node src/backend/server.js"\n' > /scripts/start.sh && \
+export PATH="/app/node_modules/.bin:/usr/local/bin:$PATH"\n\
+cd /app && npx concurrently "npx vite --host 0.0.0.0" "node src/backend/server.js"\n' > /scripts/start.sh && \
     chmod +x /scripts/start.sh
 
-# Expose ports
 EXPOSE 5173 5000
 
-# Start the application using shell to execute the script
 CMD ["/bin/sh", "/scripts/start.sh"]
