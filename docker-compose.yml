@@ -49,6 +49,8 @@ services:
       - ./ingest_fake_data.py:/app/ingest_fake_data.py
       - type: tmpfs
         target: /app/node_modules
+        tmpfs:
+          size: 1024M  # Adjust size as needed
     ports:
       - "5173:5173"
       - "5000:5000"
