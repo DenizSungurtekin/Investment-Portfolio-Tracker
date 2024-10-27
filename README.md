@@ -49,6 +49,12 @@ PGADMIN_PASSWORD=yourdbpassword
 docker-compose up --build
 ```
 
+or from if you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
+```bash
+docker-compose down
+docker system prune -a --volumes -f
+docker-compose up --build
+```
 ## Services
 
 The application runs three main services:
@@ -72,18 +78,6 @@ project/
 ```
 
 ## Development
-
-### Running Locally
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Start the development server:
-```bash
-npm run dev
-```
 
 ### Database Management
 
