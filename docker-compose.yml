@@ -10,7 +10,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-investments}
       PGDATA: /data/postgres
     volumes:
-      - /data/postgres:/data/postgres
+      - postgres_data:/data/postgres
     ports:
       - "5432:5432"
     networks:
