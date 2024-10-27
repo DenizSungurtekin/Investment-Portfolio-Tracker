@@ -1,10 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import InvestmentDashboard from './components/InvestmentDashboard';
 import AddInvestment from './pages/AddInvestment';
 import { Plus } from 'lucide-react';
 
-function DashboardContent({ data, loading, error, selectedTable, setSelectedTable, handleAddNew, onInvestmentUpdate }) {
+function DashboardContent({
+  data,
+  loading,
+  error,
+  selectedTable,
+  setSelectedTable,
+  handleAddNew,
+  onUpdateInvestment,
+  onDeleteInvestment,
+  onDuplicateInvestment
+}) {
   if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl font-semibold">Loading...</div></div>;
   if (error) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl text-red-600">Error: {error}</div></div>;
   if (!data) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl">No data available</div></div>;
@@ -37,7 +47,9 @@ function DashboardContent({ data, loading, error, selectedTable, setSelectedTabl
         <InvestmentDashboard
           investments={data}
           selectedTable={selectedTable}
-          onInvestmentUpdate={onInvestmentUpdate}
+          onUpdateInvestment={onUpdateInvestment}
+          onDeleteInvestment={onDeleteInvestment}
+          onDuplicateInvestment={onDuplicateInvestment}
         />
       </div>
     </div>
@@ -73,6 +85,75 @@ function App() {
     }
   }, [location.pathname, selectedTable]);
 
+  const handleUpdateInvestment = useCallback(async (updatedInvestment) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/investments/${selectedTable}/${updatedInvestment.investment_id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedInvestment),
+        }
+      );
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      // Update local state immediately
+      setData(prevData =>
+        prevData.map(inv =>
+          inv.investment_id === updatedInvestment.investment_id ? updatedInvestment : inv
+        )
+      );
+
+      return true;
+    } catch (error) {
+      console.error('Update error:', error);
+      return false;
+    }
+  }, [selectedTable]);
+
+  const handleDeleteInvestment = useCallback(async (investmentId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/investments/${selectedTable}/${investmentId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      // Update local state immediately
+      setData(prevData => prevData.filter(inv => inv.investment_id !== investmentId));
+      return true;
+    } catch (error) {
+      console.error('Delete error:', error);
+      return false;
+    }
+  }, [selectedTable]);
+
+  const handleDuplicateInvestment = useCallback(async (investment) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(investment),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const newInvestment = await response.json();
+
+      // Update local state immediately
+      setData(prevData => [...prevData, newInvestment]);
+      return true;
+    } catch (error) {
+      console.error('Duplicate error:', error);
+      return false;
+    }
+  }, [selectedTable]);
+
   const handleAddNew = () => {
     navigate('/add-investment', { state: { tableName: selectedTable } });
   };
@@ -89,7 +170,9 @@ function App() {
             selectedTable={selectedTable}
             setSelectedTable={setSelectedTable}
             handleAddNew={handleAddNew}
-            onInvestmentUpdate={fetchData}
+            onUpdateInvestment={handleUpdateInvestment}
+            onDeleteInvestment={handleDeleteInvestment}
+            onDuplicateInvestment={handleDuplicateInvestment}
           />
         }
       />
