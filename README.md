@@ -49,7 +49,10 @@ PGADMIN_PASSWORD=yourdbpassword
 docker-compose up --build
 ```
 
-or from if you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
+Go to http://localhost:5173/ And Enjoy !
+
+### Dev commands
+If you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
 ```bash
 docker-compose down
 docker system prune -a --volumes -f
