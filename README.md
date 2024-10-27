@@ -107,6 +107,9 @@ Add records of your own investments with the add button or by copying samples fr
 ![Demo](./img/demo1.png)
 ![Demo](./img/demo3.png)
 
+Do not hesitate to make back up of your investments table !
+
+(Potential Implementation of button which can do the backup automatically)
 ### Environment Variables
 
 | Variable | Description | Default |
