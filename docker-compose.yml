@@ -38,7 +38,9 @@ services:
     restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: investment_app
     volumes:
       - ./src:/app/src
@@ -46,7 +48,6 @@ services:
       - ./index.html:/app/index.html
       - ./vite.config.js:/app/vite.config.js
       - ./.env:/app/.env
-      - ./package.json:/app/package.json
       - ./ingest_fake_data.py:/app/ingest_fake_data.py
       - type: tmpfs
         target: /app/node_modules
