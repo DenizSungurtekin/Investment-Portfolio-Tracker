@@ -21,7 +21,7 @@ const INVESTMENT_TYPES = [
   'crypto'
 ];
 
-const InvestmentDashboard = ({ investments, selectedTable }) => {
+const InvestmentDashboard = ({ investments, selectedTable, onInvestmentUpdate  }) => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState(null);
   const [selectedMonthAllocation, setSelectedMonthAllocation] = useState(null);
@@ -166,81 +166,108 @@ useEffect(() => {
     }));
   };
 
-  const handleSave = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}/${editData.investment_id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editData),
-      });
+const handleSave = async () => {
+  try {
+    // Log the data being sent
+    console.log('Saving investment:', editData);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    // Prepare the data in the format the server expects
+    const updatedData = {
+      name: editData.investment_name, // Use investment_name as name
+      investment_name: editData.investment_name,
+      investment_type: editData.investment_type,
+      provider: editData.provider,
+      amount: Number(editData.amount), // Convert to number
+      currency: editData.currency || 'CHF',
+      unit: editData.unit ? Number(editData.unit) : null, // Convert to number if exists
+      notes: editData.notes || ''
+    };
+
+    const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}/${editData.investment_id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    setEditingId(null);
+    setEditData(null);
+    onInvestmentUpdate();
+  } catch (error) {
+    console.error('Update error:', error);
+    alert('Error updating investment: ' + error.message);
+  }
+};
+
+const handleDelete = async (id) => {
+  if (!confirm('Are you sure you want to delete this investment?')) {
+    return;
+  }
+
+  try {
+    // Log the delete operation
+    console.log('Deleting investment:', id, 'from table:', selectedTable);
+
+    const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
       }
+    });
 
-      window.location.reload();
-    } catch (error) {
-      console.error('Update error:', error);
-      alert('Error updating investment: ' + error.message);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this investment?')) {
-      return;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    try {
-      const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}/${id}`, {
-        method: 'DELETE',
-      });
+    onInvestmentUpdate();
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert('Error deleting investment: ' + error.message);
+  }
+};
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+const handleDuplicate = async (investment) => {
+  try {
+    // Prepare the data in the format the server expects
+    const newInvestment = {
+      name: investment.investment_name,
+      investment_name: investment.investment_name,
+      investment_type: investment.investment_type,
+      provider: investment.provider,
+      amount: Number(investment.amount), // Convert to number
+      currency: investment.currency || 'CHF',
+      unit: investment.unit ? Number(investment.unit) : null, // Convert to number if exists
+      notes: investment.notes || ''
+    };
 
-      window.location.reload();
-    } catch (error) {
-      console.error('Delete error:', error);
-      alert('Error deleting investment: ' + error.message);
+    console.log('Duplicating investment:', newInvestment);
+
+    const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newInvestment),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
-  };
 
-  const handleDuplicate = async (investment) => {
-    try {
-      const newInvestment = {
-        name: investment.investment_name,
-        investment_name: investment.investment_name,
-        investment_type: investment.investment_type,
-        provider: investment.provider,
-        amount: investment.amount,
-        notes: investment.notes,
-        currency: investment.currency,
-        unit: investment.unit,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newInvestment),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      window.location.reload();
-    } catch (error) {
-      console.error('Duplication error:', error);
-      alert('Error duplicating investment: ' + error.message);
-    }
-  };
+    onInvestmentUpdate();
+  } catch (error) {
+    console.error('Duplication error:', error);
+    alert('Error duplicating investment: ' + error.message);
+  }
+};
 
 const monthlyTypeData = useMemo(() => {
 return sortedMonthKeys.map(key => {
@@ -648,19 +675,18 @@ return (
 };
 
 InvestmentDashboard.propTypes = {
-  investments: PropTypes.arrayOf(
-    PropTypes.shape({
-      investment_id: PropTypes.number.isRequired,
-      investment_name: PropTypes.string.isRequired,
-      investment_type: PropTypes.string.isRequired,
-      provider: PropTypes.string.isRequired,
-      amount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-      notes: PropTypes.string,
-      currency: PropTypes.string.isRequired,
-      created_at: PropTypes.string.isRequired,
-    })
-  ).isRequired,
+  investments: PropTypes.arrayOf(PropTypes.shape({
+    investment_id: PropTypes.number.isRequired,
+    investment_name: PropTypes.string.isRequired,
+    investment_type: PropTypes.string.isRequired,
+    provider: PropTypes.string.isRequired,
+    amount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+    notes: PropTypes.string,
+    currency: PropTypes.string,
+    created_at: PropTypes.string.isRequired,
+  })).isRequired,
   selectedTable: PropTypes.string.isRequired,
+  onInvestmentUpdate: PropTypes.func.isRequired,
 };
 
 export default InvestmentDashboard;

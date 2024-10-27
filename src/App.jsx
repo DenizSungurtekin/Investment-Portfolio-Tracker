@@ -1,34 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import PropTypes from 'prop-types';
 import InvestmentDashboard from './components/InvestmentDashboard';
 import AddInvestment from './pages/AddInvestment';
 import { Plus } from 'lucide-react';
 
-function DashboardContent({ data, loading, error, selectedTable, setSelectedTable, handleAddNew }) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl font-semibold">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-red-600">Error: {error}</div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">No data available</div>
-      </div>
-    );
-  }
+function DashboardContent({ data, loading, error, selectedTable, setSelectedTable, handleAddNew, onInvestmentUpdate }) {
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl font-semibold">Loading...</div></div>;
+  if (error) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl text-red-600">Error: {error}</div></div>;
+  if (!data) return <div className="flex items-center justify-center min-h-screen"><div className="text-xl">No data available</div></div>;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -55,36 +34,15 @@ function DashboardContent({ data, loading, error, selectedTable, setSelectedTabl
             </div>
           </div>
         </div>
-        <InvestmentDashboard investments={data} selectedTable={selectedTable} />
+        <InvestmentDashboard
+          investments={data}
+          selectedTable={selectedTable}
+          onInvestmentUpdate={onInvestmentUpdate}
+        />
       </div>
     </div>
   );
 }
-
-DashboardContent.propTypes = {
-  data: PropTypes.arrayOf(
-    PropTypes.shape({
-      investment_id: PropTypes.number.isRequired,
-      investment_name: PropTypes.string.isRequired,
-      investment_type: PropTypes.string.isRequired,
-      provider: PropTypes.string.isRequired,
-      amount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-      notes: PropTypes.string,
-      currency: PropTypes.string.isRequired,
-      created_at: PropTypes.string.isRequired,
-    })
-  ),
-  loading: PropTypes.bool.isRequired,
-  error: PropTypes.string,
-  selectedTable: PropTypes.string.isRequired,
-  setSelectedTable: PropTypes.func.isRequired,
-  handleAddNew: PropTypes.func.isRequired,
-};
-
-DashboardContent.defaultProps = {
-  data: null,
-  error: null,
-};
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -98,9 +56,7 @@ function App() {
     setLoading(true);
     try {
       const response = await fetch(`http://localhost:5000/api/investments/${selectedTable}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const jsonData = await response.json();
       setData(jsonData);
     } catch (error) {
@@ -133,6 +89,7 @@ function App() {
             selectedTable={selectedTable}
             setSelectedTable={setSelectedTable}
             handleAddNew={handleAddNew}
+            onInvestmentUpdate={fetchData}
           />
         }
       />

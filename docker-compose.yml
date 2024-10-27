@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:latest
@@ -8,12 +10,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-investments}
       PGDATA: /data/postgres
     volumes:
-      - postgres_data:/data/postgres
+      - /data/postgres:/data/postgres
     ports:
       - "5432:5432"
     networks:
       - app_network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-investments}"]
       interval: 10s
@@ -35,38 +36,31 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: investment_app
-    volumes:
-      - ./src:/app/src
-      - ./public:/app/public
-      - ./index.html:/app/index.html
-      - ./vite.config.js:/app/vite.config.js
-      - ./.env:/app/.env
-      - ./ingest_fake_data.py:/app/ingest_fake_data.py
-      - type: tmpfs
-        target: /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-1227}
+      - POSTGRES_DB=${POSTGRES_DB:-investments}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - VITE_API_URL=http://localhost:5000
     ports:
       - "5173:5173"
       - "5000:5000"
-    environment:
-      - VITE_API_URL=http://localhost:5000
-      - DB_USER=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-1227}
-      - DB_NAME=${POSTGRES_DB:-investments}
-      - DB_HOST=postgres
-      - DB_PORT=5432
+    volumes:
+      - .:/app
+      - /app/node_modules
     networks:
       - app_network
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
 
 networks:
   app_network:

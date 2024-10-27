@@ -35,6 +35,14 @@ console.log('Database configuration:', {
   port: process.env.DB_PORT
 });
 
+// Helper function to clean numeric values
+const cleanNumericValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numValue = Number(value);
+  return isNaN(numValue) ? null : numValue;
+};
 
 // Whitelist of allowed table names for security
 const ALLOWED_TABLES = ['investments', 'investments_fake'];
@@ -44,13 +52,11 @@ const DEFAULT_TABLE = 'investments_fake';
 app.get('/api/investments/:tableName?', async (req, res) => {
   const tableName = req.params.tableName || DEFAULT_TABLE;
 
-  // Security check: only allow whitelisted table names
   if (!ALLOWED_TABLES.includes(tableName)) {
     return res.status(400).json({ error: 'Invalid table name' });
   }
 
   try {
-    // Fixed query syntax - using template literals with proper escaping
     const query = `SELECT * FROM ${tableName} ORDER BY investment_id`;
     const result = await pool.query(query);
     res.json(result.rows);
@@ -58,11 +64,6 @@ app.get('/api/investments/:tableName?', async (req, res) => {
     console.error('Database error:', err);
     res.status(500).json({ error: err.message });
   }
-});
-
-const PORT = process.env.PORT ?? 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
 });
 
 app.post('/api/investments/:tableName', async (req, res) => {
@@ -84,12 +85,21 @@ app.post('/api/investments/:tableName', async (req, res) => {
       notes
     } = req.body;
 
+    // Clean numeric values
+    const cleanedAmount = cleanNumericValue(amount);
+    const cleanedUnit = cleanNumericValue(unit);
+
+    // Validate required fields
+    if (!cleanedAmount) {
+      return res.status(400).json({ error: 'Amount is required and must be a valid number' });
+    }
+
     const result = await pool.query(
       `INSERT INTO ${tableName} 
        (name, provider, investment_type, investment_name, amount, currency, unit, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, provider, investment_type, investment_name, amount, currency, unit, notes]
+      [name, provider, investment_type, investment_name, cleanedAmount, currency, cleanedUnit, notes]
     );
 
     res.status(201).json(result.rows[0]);
@@ -118,13 +128,22 @@ app.put('/api/investments/:tableName/:id', async (req, res) => {
       notes
     } = req.body;
 
+    // Clean numeric values
+    const cleanedAmount = cleanNumericValue(amount);
+    const cleanedUnit = cleanNumericValue(unit);
+
+    // Validate required fields
+    if (!cleanedAmount) {
+      return res.status(400).json({ error: 'Amount is required and must be a valid number' });
+    }
+
     const result = await pool.query(
       `UPDATE ${tableName} 
        SET name = $1, provider = $2, investment_type = $3, investment_name = $4, 
            amount = $5, currency = $6, unit = $7, notes = $8, updated_at = CURRENT_TIMESTAMP
        WHERE investment_id = $9
        RETURNING *`,
-      [name, provider, investment_type, investment_name, amount, currency, unit, notes, id]
+      [name, provider, investment_type, investment_name, cleanedAmount, currency, cleanedUnit, notes, id]
     );
 
     if (result.rows.length === 0) {
@@ -160,4 +179,9 @@ app.delete('/api/investments/:tableName/:id', async (req, res) => {
     console.error('Database error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+const PORT = process.env.PORT ?? 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });

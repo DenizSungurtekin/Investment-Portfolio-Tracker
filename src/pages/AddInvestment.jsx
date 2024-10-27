@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useContext } from 'react';
 
 const INVESTMENT_TYPES = [
   'cash',
@@ -26,27 +27,27 @@ function AddInvestment() {
     notes: ''
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`http://localhost:5000/api/investments/${tableName}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const response = await fetch(`http://localhost:5000/api/investments/${tableName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      navigate('/', { replace: true });
-    } catch (error) {
-      console.error('Submission error:', error);
-      alert('Error adding investment: ' + error.message);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    navigate('/', { replace: true });
+  } catch (error) {
+    console.error('Submission error:', error);
+    alert('Error adding investment: ' + error.message);
+  }
+};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
