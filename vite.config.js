@@ -11,5 +11,13 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@radix-ui/react-select']
+  },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
+    watch: {
+      usePolling: true
+    }
   }
 })
