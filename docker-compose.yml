@@ -41,9 +41,16 @@ services:
     build: .
     container_name: investment_app
     volumes:
-      ./:/app    # Mount entire project directory
-    tmpfs:
-      - /app/node_modules:exec    # Mount node_modules as tmpfs with exec permissions
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+      - ./.env:/app/.env
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./ingest_fake_data.py:/app/ingest_fake_data.py
+      - type: tmpfs
+        target: /app/node_modules
     ports:
       - "5173:5173"
       - "5000:5000"
