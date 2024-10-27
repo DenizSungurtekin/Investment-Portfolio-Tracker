@@ -8,8 +8,8 @@ WORKDIR /app
 # Create scripts directory that won't be mounted over
 RUN mkdir -p /scripts
 
-# Copy package files first
-COPY package*.json ./
+# Copy only package.json first (removed package-lock.json reference)
+COPY package.json ./
 
 # Install dependencies with specific flags for Vite
 RUN npm install -g npm@latest
