@@ -24,14 +24,14 @@ A full-stack application for tracking and managing investment portfolios with re
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Git
+- Docker Desktop (https://www.docker.com/products/docker-desktop/) 
+- Git (https://git-scm.com/downloads)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/DenizSungurtekin/Investment-Portfolio-Tracker
 cd investment-portfolio-tracker
 ```
 
@@ -49,7 +49,10 @@ PGADMIN_PASSWORD=yourdbpassword
 docker-compose up --build
 ```
 
-or from if you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
+Go to http://localhost:5173/ And Enjoy !
+
+### Dev commands
+If you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
 ```bash
 docker-compose down
 docker system prune -a --volumes -f
