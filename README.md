@@ -9,7 +9,6 @@ A full-stack application for tracking and managing investment portfolios with re
 - 📊 Real-time portfolio visualization with interactive charts
 - 💰 Track multiple investment types (stocks, bonds, crypto, etc.)
 - 📈 Historical performance tracking
-- 🏦 Multi-provider support
 - 📱 Responsive dashboard interface
 - 🔄 Real-time data updates
 - 📝 Notes and annotations support
@@ -51,6 +50,29 @@ docker-compose up --build
 
 Go to http://localhost:5173/ And Enjoy !
 
+## Update
+
+1. Pull the repository:
+```bash
+git pull
+docker-compose up --build
+```
+### Use the application
+
+On http://localhost:5173/, you’ll find dashboards displaying a dataset named "investments (fake)." This dataset is initialized when Docker starts and is linked to a table called "investments_fake" in the PostgreSQL database. This view allows you to work with the application without affecting your actual data.
+
+Switch to the "investment" view to analyze your personal investments. To add records of your investments, use the add button (the "+" symbol).
+
+![Demo](./img/demo1.png)
+
+For the first month, you'll need to enter each entry manually. At the beginning of each subsequent month, the process simplifies: you only need to enter one investment manually, which will trigger the system to shift to the current month. After that, instead of entering each investment individually, you can copy entries from the previous month to the current one by clicking the green copy button and adjust the amounts as needed, making it quick to update your records for the new month.
+
+![Demo](./img/demo3.png)
+The records will be stored in a table named "investments" in the postgres database which is fully secured and hosted in local
+
+Do not hesitate to make back up of your investments table !
+
+(Potential Implementation of button which can do the backup automatically)
 ### Dev commands
 If you want to rerun clean (for dev purpose) It will refactor all your docker be careful. Adjust the prune command at will:
 ```bash
@@ -102,18 +124,6 @@ project/
 - `DELETE /api/investments/:tableName/:id` - Delete investment
 
 ## Configuration
-
-### Analyse your own investments
-
-Add records of your own investments with the add button or by copying samples from previous month and editing them.
-
-![Demo](./img/demo1.png)
-![Demo](./img/demo3.png)
-
-Do not hesitate to make back up of your investments table !
-
-(Potential Implementation of button which can do the backup automatically)
-### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
