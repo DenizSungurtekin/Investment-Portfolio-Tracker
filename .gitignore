@@ -27,3 +27,8 @@ venv
 # data DB
 /data
 data
+
+video
+/video
+backups
+READMEINVEST.md

@@ -145,3 +145,9 @@ Do not hesitate to make back up of your investments table !
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Improvoment Idea
+
+1. Tax and credit Manager
+2. Add Investment advice with GPT
+3. For different type of investment show increase or decrease of value monthly

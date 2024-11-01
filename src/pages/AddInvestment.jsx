@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useContext } from 'react';
 
 const INVESTMENT_TYPES = [
   'cash',
@@ -17,37 +16,50 @@ function AddInvestment() {
   const tableName = location.state?.tableName || 'investments';
 
   const [formData, setFormData] = useState({
-    name: '',
+    investment_name: '',  // Changed from name to match server expectations
     provider: '',
     investment_type: '',
-    investment_name: '',
     amount: '',
     currency: 'CHF',
     unit: '',
     notes: ''
   });
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  try {
-    const response = await fetch(`http://localhost:5000/api/investments/${tableName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData),
-    });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Create payload with correct structure
+    const payload = {
+      name: formData.investment_name, // Server expects 'name'
+      provider: formData.provider,
+      investment_type: formData.investment_type,
+      investment_name: formData.investment_name,
+      amount: Number(formData.amount), // Ensure amount is a number
+      currency: formData.currency,
+      unit: formData.unit ? Number(formData.unit) : null, // Ensure unit is a number or null
+      notes: formData.notes
+    };
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/investments/${tableName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      navigate('/', { replace: true });
+    } catch (error) {
+      console.error('Submission error:', error);
+      alert('Error adding investment: ' + error.message);
     }
-
-    navigate('/', { replace: true });
-  } catch (error) {
-    console.error('Submission error:', error);
-    alert('Error adding investment: ' + error.message);
-  }
-};
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,11 +85,11 @@ const handleSubmit = async (e) => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <label className="block text-sm font-medium text-gray-700">Investment Name</label>
               <input
                 type="text"
-                name="name"
-                value={formData.name}
+                name="investment_name"
+                value={formData.investment_name}
                 onChange={handleChange}
                 required
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
@@ -112,18 +124,6 @@ const handleSubmit = async (e) => {
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Investment Name</label>
-              <input
-                type="text"
-                name="investment_name"
-                value={formData.investment_name}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-              />
             </div>
 
             <div>

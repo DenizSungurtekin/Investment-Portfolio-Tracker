@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const DASHBOARD_COLORS = {
   allocation: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', '#D4A5A5'],
   providers: ['#845EC2', '#D65DB1', '#FF6F91', '#FF9671', '#FFC75F', '#F9F871'],
-  monthlyTrends: [ '#0a63c9', 'rgba(149,112,185,0.77)','#FF9671', '#FF6F91','#9c26dc','#D65DB1'],
+  monthlyTrends: ['#0a63c9', 'rgba(149,112,185,0.77)','#FF9671', '#FF6F91','#9c26dc','#D65DB1'],
   positive: '#4CAF50',
   negative: '#FF5252',
 };
@@ -33,6 +33,10 @@ const InvestmentDashboard = ({
   const [selectedMonthAllocation, setSelectedMonthAllocation] = useState(null);
   const [selectedMonthProvider, setSelectedMonthProvider] = useState(null);
 
+  // Get current date for comparison
+  const currentDate = new Date();
+  const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
   // Formatting functions
   const formatValue = (value) => {
     return new Intl.NumberFormat('fr-CH', {
@@ -54,7 +58,7 @@ const InvestmentDashboard = ({
     return new Date(year, Number(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
   };
 
-  // Helper function to parse PostgreSQL timestamp and create a consistent date key
+  // Helper function to parse PostgreSQL timestamp
   const parseDate = (timestamp) => {
     const date = new Date(timestamp);
     return {
@@ -78,31 +82,83 @@ const InvestmentDashboard = ({
     return Object.keys(groupedInvestments).sort();
   }, [groupedInvestments]);
 
-useEffect(() => {
-  console.log('Effect running, sortedMonthKeys:', sortedMonthKeys);
-  if (sortedMonthKeys.length > 0) {
-    const latestMonth = sortedMonthKeys[sortedMonthKeys.length - 1];
-    setSelectedMonthAllocation(prevMonth => prevMonth || latestMonth);
-    setSelectedMonthProvider(prevMonth => prevMonth || latestMonth);
-  }
-}, [sortedMonthKeys]);
+  // Get the latest month with data
+  const latestMonthKey = useMemo(() => {
+    return sortedMonthKeys[sortedMonthKeys.length - 1];
+  }, [sortedMonthKeys]);
 
-  // Get selected month's data for each chart
-  const selectedMonthDataAllocation = useMemo(() => {
-    return selectedMonthAllocation ? groupedInvestments[selectedMonthAllocation] || [] : [];
-  }, [selectedMonthAllocation, groupedInvestments]);
+  // Get latest month's data for portfolio metrics
+  const latestMonthData = useMemo(() => {
+    return groupedInvestments[latestMonthKey] || [];
+  }, [groupedInvestments, latestMonthKey]);
 
-  const selectedMonthDataProvider = useMemo(() => {
-    return selectedMonthProvider ? groupedInvestments[selectedMonthProvider] || [] : [];
-  }, [selectedMonthProvider, groupedInvestments]);
+  // Get current month's data (might be empty)
+  const currentMonthData = useMemo(() => {
+    return groupedInvestments[currentMonthKey] || [];
+  }, [groupedInvestments, currentMonthKey]);
 
-  // Get last month's data (most recent)
-  const lastMonthKey = sortedMonthKeys[sortedMonthKeys.length - 1];
-  const lastMonthData = groupedInvestments[lastMonthKey] || [];
+  // Get previous month's data relative to current month
+  const prevMonthKey = useMemo(() => {
+    const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
+    return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  }, [currentDate]);
 
-  // Get previous month's data for comparison
-  const prevMonthKey = sortedMonthKeys[sortedMonthKeys.length - 2];
-  const prevMonthData = groupedInvestments[prevMonthKey] || [];
+  const prevMonthData = useMemo(() => {
+    return groupedInvestments[prevMonthKey] || [];
+  }, [groupedInvestments, prevMonthKey]);
+
+  // Calculate totals using latest month data
+  const currentTotal = useMemo(() => {
+    return latestMonthData.reduce((sum, inv) => sum + Number(inv.amount), 0);
+  }, [latestMonthData]);
+
+  const previousTotal = useMemo(() => {
+    const previousKey = sortedMonthKeys[sortedMonthKeys.length - 2];
+    const previousMonthData = previousKey ? groupedInvestments[previousKey] : [];
+    return previousMonthData.reduce((sum, inv) => sum + Number(inv.amount), 0);
+  }, [groupedInvestments, sortedMonthKeys]);
+
+  const percentageChange = useMemo(() => {
+    return previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
+  }, [currentTotal, previousTotal]);
+
+  // Update selected months when month keys change
+  useEffect(() => {
+    if (latestMonthKey) {
+      setSelectedMonthAllocation(prevMonth => prevMonth || latestMonthKey);
+      setSelectedMonthProvider(prevMonth => prevMonth || latestMonthKey);
+    }
+  }, [latestMonthKey]);
+
+  // Prepare data for allocation pie chart
+  const typeData = useMemo(() => {
+    return Object.entries(
+      latestMonthData.reduce((acc, inv) => {
+        acc[inv.investment_type] = (acc[inv.investment_type] || 0) + Number(inv.amount);
+        return acc;
+      }, {})
+    )
+      .map(([name, value]) => ({
+        name: name.replace('_', ' ').toUpperCase(),
+        value: Number(value.toFixed(2))
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [latestMonthData]);
+
+  // Prepare data for provider bar chart
+  const providerData = useMemo(() => {
+    return Object.entries(
+      latestMonthData.reduce((acc, inv) => {
+        acc[inv.provider] = (acc[inv.provider] || 0) + Number(inv.amount);
+        return acc;
+      }, {})
+    )
+      .map(([name, value]) => ({
+        name,
+        value: Number(value.toFixed(2))
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [latestMonthData]);
 
   // Calculate monthly totals for trend analysis
   const monthlyTotals = useMemo(() => {
@@ -116,49 +172,25 @@ useEffect(() => {
     }).sort((a, b) => a.date - b.date);
   }, [groupedInvestments]);
 
-  // Calculate current metrics
-  const currentTotal = useMemo(() => {
-    return lastMonthData.reduce((sum, inv) => sum + Number(inv.amount), 0);
-  }, [lastMonthData]);
+  const monthlyTypeData = useMemo(() => {
+    return sortedMonthKeys.map(key => {
+      const invs = groupedInvestments[key];
+      const [year, month] = key.split('-');
+      const date = new Date(year, Number(month) - 1);
 
-  const previousTotal = useMemo(() => {
-    return prevMonthData.reduce((sum, inv) => sum + Number(inv.amount), 0);
-  }, [prevMonthData]);
-
-  const percentageChange = useMemo(() => {
-    return previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
-  }, [currentTotal, previousTotal]);
-
-  // Prepare data for allocation pie chart
-  const typeData = useMemo(() => {
-    return Object.entries(
-      selectedMonthDataAllocation.reduce((acc, inv) => {
+      const types = invs.reduce((acc, inv) => {
         acc[inv.investment_type] = (acc[inv.investment_type] || 0) + Number(inv.amount);
         return acc;
-      }, {})
-    )
-      .map(([name, value]) => ({
-        name: name.replace('_', ' ').toUpperCase(),
-        value: Number(value.toFixed(2))
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [selectedMonthDataAllocation]);
+      }, {});
 
-  // Prepare data for provider bar chart
-  const providerData = useMemo(() => {
-    return Object.entries(
-      selectedMonthDataProvider.reduce((acc, inv) => {
-        acc[inv.provider] = (acc[inv.provider] || 0) + Number(inv.amount);
-        return acc;
-      }, {})
-    )
-      .map(([name, value]) => ({
-        name,
-        value: Number(value.toFixed(2))
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [selectedMonthDataProvider]);
+      return {
+        date: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        ...types
+      };
+    });
+  }, [sortedMonthKeys, groupedInvestments]);
 
+  // Event handlers
   const handleEdit = (investment) => {
     setEditingId(investment.investment_id);
     setEditData({ ...investment });
@@ -175,7 +207,6 @@ useEffect(() => {
   const handleSave = async () => {
     try {
       const success = await onUpdateInvestment(editData);
-
       if (success) {
         setEditingId(null);
         setEditData(null);
@@ -195,7 +226,6 @@ useEffect(() => {
 
     try {
       const success = await onDeleteInvestment(id);
-
       if (!success) {
         alert('Failed to delete investment');
       }
@@ -219,7 +249,6 @@ useEffect(() => {
       };
 
       const success = await onDuplicateInvestment(newInvestment);
-
       if (!success) {
         alert('Failed to duplicate investment');
       }
@@ -229,26 +258,7 @@ useEffect(() => {
     }
   };
 
-const monthlyTypeData = useMemo(() => {
-return sortedMonthKeys.map(key => {
-  const invs = groupedInvestments[key];
-  const [year, month] = key.split('-');
-  const date = new Date(year, Number(month) - 1);
-
-  // Calculate totals for each investment type
-  const types = invs.reduce((acc, inv) => {
-    acc[inv.investment_type] = (acc[inv.investment_type] || 0) + Number(inv.amount);
-    return acc;
-  }, {});
-
-  return {
-    date: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
-    ...types
-  };
-});
-}, [sortedMonthKeys, groupedInvestments]);
-
-return (
+  return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto">
         {/* Portfolio Summary */}
@@ -275,19 +285,19 @@ return (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-2">Number of Investments</h2>
             <p className="text-3xl font-bold">
-              {lastMonthData.length}
+              {latestMonthData.length}
             </p>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-2">Number of Providers</h2>
             <p className="text-3xl font-bold">
-              {new Set(lastMonthData.map(inv => inv.provider)).size}
+              {new Set(latestMonthData.map(inv => inv.provider)).size}
             </p>
           </div>
         </div>
 
-        {/* Charts Section with independent month selectors */}
+        {/* Charts Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {/* Asset Allocation Chart */}
           <div className="bg-white rounded-lg shadow p-6">
@@ -384,7 +394,7 @@ return (
           </div>
         </div>
 
-{/* Monthly Evolution Charts */}
+        {/* Monthly Evolution Charts */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Total Portfolio Evolution</h2>
@@ -453,181 +463,193 @@ return (
         {/* Current Month Investment Details */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">
-            {lastMonthKey ? `Investment Details: ${formatMonthDisplay(lastMonthKey)} ` : 'Investment Details'}
+            Investment Details: {formatMonthDisplay(currentMonthKey)}
           </h2>
-          <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b">
-                  <th className="text-left p-2 font-semibold">Name</th>
-                  <th className="text-left p-2 font-semibold">Type</th>
-                  <th className="text-left p-2 font-semibold">Provider</th>
-                  <th className="text-right p-2 font-semibold">Amount</th>
-                  <th className="text-left p-2 font-semibold">Notes</th>
-                  <th className="text-right p-2 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...lastMonthData]
-                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                  .map((investment) => (
-                    <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
-                      {editingId === investment.investment_id ? (
-                        // Edit mode
-                        <>
-                          <td className="p-2">
-                            <input
-                              type="text"
-                              name="investment_name"
-                              value={editData?.investment_name || ''}
-                              onChange={handleEditChange}
-                              className="w-full px-2 py-1 border rounded"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <select
-                              name="investment_type"
-                              value={editData?.investment_type || ''}
-                              onChange={handleEditChange}
-                              className="w-full px-2 py-1 border rounded"
-                            >
-                              {INVESTMENT_TYPES.map(type => (
-                                <option key={type} value={type}>
-                                  {type.replace('_', ' ').toUpperCase()}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="p-2">
-                            <input
-                              type="text"
-                              name="provider"
-                              value={editData?.provider || ''}
-                              onChange={handleEditChange}
-                              className="w-full px-2 py-1 border rounded"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <input
-                              type="number"
-                              step="0.01"
-                              name="amount"
-                              value={editData?.amount || ''}
-                              onChange={handleEditChange}
-                              className="w-full px-2 py-1 border rounded text-right"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <input
-                              type="text"
-                              name="notes"
-                              value={editData?.notes || ''}
-                              onChange={handleEditChange}
-                              className="w-full px-2 py-1 border rounded"
-                            />
-                          </td>
-                          <td className="p-2 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={handleSave}
-                                className="p-1 text-green-600 hover:text-green-800"
-                                title="Save"
+          {currentMonthData.length > 0 ? (
+            <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-semibold">Name</th>
+                    <th className="text-left p-2 font-semibold">Type</th>
+                    <th className="text-left p-2 font-semibold">Provider</th>
+                    <th className="text-right p-2 font-semibold">Amount</th>
+                    <th className="text-left p-2 font-semibold">Notes</th>
+                    <th className="text-right p-2 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentMonthData
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .map((investment) => (
+                      <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
+                        {editingId === investment.investment_id ? (
+                          // Edit mode
+                          <>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                name="investment_name"
+                                value={editData?.investment_name || ''}
+                                onChange={handleEditChange}
+                                className="w-full px-2 py-1 border rounded"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <select
+                                name="investment_type"
+                                value={editData?.investment_type || ''}
+                                onChange={handleEditChange}
+                                className="w-full px-2 py-1 border rounded"
                               >
-                                <Check size={16} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingId(null);
-                                  setEditData(null);
-                                }}
-                                className="p-1 text-gray-600 hover:text-gray-800"
-                                title="Cancel"
-                              >
-                                <X size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        // View mode
-                        <>
-                          <td className="p-2">{investment.investment_name}</td>
-                          <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
-                          <td className="p-2">{investment.provider}</td>
-                          <td className="text-right p-2">
-                            {formatCurrency(investment.amount)}
-                          </td>
-                          <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
-                          <td className="p-2 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => handleEdit(investment)}
-                                className="p-1 text-blue-600 hover:text-blue-800"
-                                title="Edit"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(investment.investment_id)}
-                                className="p-1 text-red-600 hover:text-red-800"
-                                title="Delete"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+                                {INVESTMENT_TYPES.map(type => (
+                                  <option key={type} value={type}>
+                                    {type.replace('_', ' ').toUpperCase()}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                name="provider"
+                                value={editData?.provider || ''}
+                                onChange={handleEditChange}
+                                className="w-full px-2 py-1 border rounded"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                name="amount"
+                                value={editData?.amount || ''}
+                                onChange={handleEditChange}
+                                className="w-full px-2 py-1 border rounded text-right"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                name="notes"
+                                value={editData?.notes || ''}
+                                onChange={handleEditChange}
+                                className="w-full px-2 py-1 border rounded"
+                              />
+                            </td>
+                            <td className="p-2 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={handleSave}
+                                  className="p-1 text-green-600 hover:text-green-800"
+                                  title="Save"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingId(null);
+                                    setEditData(null);
+                                  }}
+                                  className="p-1 text-gray-600 hover:text-gray-800"
+                                  title="Cancel"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          // View mode
+                          <>
+                            <td className="p-2">{investment.investment_name}</td>
+                            <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
+                            <td className="p-2">{investment.provider}</td>
+                            <td className="text-right p-2">
+                              {formatCurrency(investment.amount)}
+                            </td>
+                            <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
+                            <td className="p-2 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleEdit(investment)}
+                                  className="p-1 text-blue-600 hover:text-blue-800"
+                                  title="Edit"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(investment.investment_id)}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No investments recorded for the current month yet
+            </div>
+          )}
         </div>
 
         {/* Previous Month Investment Details */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">
-            {prevMonthKey ? `Previous Month Investment Details: ${formatMonthDisplay(prevMonthKey)}` : 'Previous Month Investment Details'}
+            Previous Month Investment Details: {formatMonthDisplay(prevMonthKey)}
           </h2>
-          <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b">
-                  <th className="text-left p-2 font-semibold">Name</th>
-                  <th className="text-left p-2 font-semibold">Type</th>
-                  <th className="text-left p-2 font-semibold">Provider</th>
-                  <th className="text-right p-2 font-semibold">Amount</th>
-                  <th className="text-left p-2 font-semibold">Notes</th>
-                  <th className="text-right p-2 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...prevMonthData]
-                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                  .map((investment) => (
-                    <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
-                      <td className="p-2">{investment.investment_name}</td>
-                      <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
-                      <td className="p-2">{investment.provider}</td>
-                      <td className="text-right p-2">
-                        {formatCurrency(investment.amount)}
-                      </td>
-                      <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
-                      <td className="p-2 text-right">
-                        <button
-                          onClick={() => handleDuplicate(investment)}
-                          className="p-1 text-green-600 hover:text-green-800"
-                          title="Duplicate for current month"
-                        >
-                          <Copy size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          {prevMonthData.length > 0 ? (
+            <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-semibold">Name</th>
+                    <th className="text-left p-2 font-semibold">Type</th>
+                    <th className="text-left p-2 font-semibold">Provider</th>
+                    <th className="text-right p-2 font-semibold">Amount</th>
+                    <th className="text-left p-2 font-semibold">Notes</th>
+                    <th className="text-right p-2 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prevMonthData
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .map((investment) => (
+                      <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
+                        <td className="p-2">{investment.investment_name}</td>
+                        <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
+                        <td className="p-2">{investment.provider}</td>
+                        <td className="text-right p-2">
+                          {formatCurrency(investment.amount)}
+                        </td>
+                        <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
+                        <td className="p-2 text-right">
+                          <button
+                            onClick={() => handleDuplicate(investment)}
+                            className="p-1 text-green-600 hover:text-green-800"
+                            title="Duplicate for current month"
+                          >
+                            <Copy size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No investments found for the previous month
+            </div>
+          )}
         </div>
       </div>
     </div>
