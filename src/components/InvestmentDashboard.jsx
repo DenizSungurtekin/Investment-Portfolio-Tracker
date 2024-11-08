@@ -37,7 +37,7 @@ const InvestmentDashboard = ({
   const currentDate = new Date();
   const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
-  // Formatting functions
+// Formatting functions
   const formatValue = (value) => {
     return new Intl.NumberFormat('fr-CH', {
       maximumFractionDigits: 0,
@@ -92,6 +92,21 @@ const InvestmentDashboard = ({
     return groupedInvestments[latestMonthKey] || [];
   }, [groupedInvestments, latestMonthKey]);
 
+  // Add selected month data computations here (FIXED ORDER)
+  const selectedMonthAllocationData = useMemo(() => {
+    if (!selectedMonthAllocation || !groupedInvestments[selectedMonthAllocation]) {
+      return [];
+    }
+    return groupedInvestments[selectedMonthAllocation];
+  }, [groupedInvestments, selectedMonthAllocation]);
+
+  const selectedMonthProviderData = useMemo(() => {
+    if (!selectedMonthProvider || !groupedInvestments[selectedMonthProvider]) {
+      return [];
+    }
+    return groupedInvestments[selectedMonthProvider];
+  }, [groupedInvestments, selectedMonthProvider]);
+
   // Get current month's data (might be empty)
   const currentMonthData = useMemo(() => {
     return groupedInvestments[currentMonthKey] || [];
@@ -122,7 +137,7 @@ const InvestmentDashboard = ({
     return previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
   }, [currentTotal, previousTotal]);
 
-  // Update selected months when month keys change
+// Update selected months when month keys change
   useEffect(() => {
     if (latestMonthKey) {
       setSelectedMonthAllocation(prevMonth => prevMonth || latestMonthKey);
@@ -133,7 +148,7 @@ const InvestmentDashboard = ({
   // Prepare data for allocation pie chart
   const typeData = useMemo(() => {
     return Object.entries(
-      latestMonthData.reduce((acc, inv) => {
+      selectedMonthAllocationData.reduce((acc, inv) => {
         acc[inv.investment_type] = (acc[inv.investment_type] || 0) + Number(inv.amount);
         return acc;
       }, {})
@@ -143,12 +158,12 @@ const InvestmentDashboard = ({
         value: Number(value.toFixed(2))
       }))
       .sort((a, b) => b.value - a.value);
-  }, [latestMonthData]);
+  }, [selectedMonthAllocationData]);
 
   // Prepare data for provider bar chart
   const providerData = useMemo(() => {
     return Object.entries(
-      latestMonthData.reduce((acc, inv) => {
+      selectedMonthProviderData.reduce((acc, inv) => {
         acc[inv.provider] = (acc[inv.provider] || 0) + Number(inv.amount);
         return acc;
       }, {})
@@ -158,7 +173,7 @@ const InvestmentDashboard = ({
         value: Number(value.toFixed(2))
       }))
       .sort((a, b) => b.value - a.value);
-  }, [latestMonthData]);
+  }, [selectedMonthProviderData]);
 
   // Calculate monthly totals for trend analysis
   const monthlyTotals = useMemo(() => {
@@ -346,8 +361,7 @@ const InvestmentDashboard = ({
               </ResponsiveContainer>
             </div>
           </div>
-
-          {/* Provider Distribution Chart */}
+{/* Provider Distribution Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Provider Distribution</h2>
@@ -460,7 +474,7 @@ const InvestmentDashboard = ({
           </div>
         </div>
 
-        {/* Current Month Investment Details */}
+      {/* Current Month Investment Details */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">
             Investment Details: {formatMonthDisplay(currentMonthKey)}
@@ -674,3 +688,4 @@ InvestmentDashboard.propTypes = {
 };
 
 export default InvestmentDashboard;
+
