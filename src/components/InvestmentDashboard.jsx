@@ -1,25 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ArrowUpIcon, ArrowDownIcon, Pencil, Trash2, X, Check, Copy } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-
-const DASHBOARD_COLORS = {
-  allocation: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', '#D4A5A5'],
-  providers: ['#845EC2', '#D65DB1', '#FF6F91', '#FF9671', '#FFC75F', '#F9F871'],
-  monthlyTrends: ['#0a63c9', 'rgba(149,112,185,0.77)','#FF9671', '#FF6F91','#9c26dc','#D65DB1'],
-  positive: '#4CAF50',
-  negative: '#FF5252',
-};
-
-const INVESTMENT_TYPES = [
-  'cash',
-  'bond',
-  'stock',
-  'real_estate',
-  'commodity',
-  'crypto'
-];
+import PortfolioSummary from './PortfolioSummary';
+import AssetAllocationChart from './AssetAllocationChart';
+import ProviderDistributionChart from './ProviderDistributionChart';
+import PortfolioEvolutionChart from './PortfolioEvolutionChart';
+import InvestmentTypesEvolutionChart from './InvestmentTypesEvolutionChart';
+import InvestmentTable from './InvestmentTable';
+import { formatValue, formatCurrency, formatMonthDisplay, parseDate } from './utils';
 
 const InvestmentDashboard = ({
   investments,
@@ -36,36 +23,6 @@ const InvestmentDashboard = ({
   // Get current date for comparison
   const currentDate = new Date();
   const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-
-// Formatting functions
-  const formatValue = (value) => {
-    return new Intl.NumberFormat('fr-CH', {
-      maximumFractionDigits: 0,
-      notation: 'compact',
-      compactDisplay: 'short'
-    }).format(value);
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('fr-CH', {
-      style: 'currency',
-      currency: 'CHF'
-    }).format(value);
-  };
-
-  const formatMonthDisplay = (monthKey) => {
-    const [year, month] = monthKey.split('-');
-    return new Date(year, Number(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-  };
-
-  // Helper function to parse PostgreSQL timestamp
-  const parseDate = (timestamp) => {
-    const date = new Date(timestamp);
-    return {
-      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-      date: date
-    };
-  };
 
   // Group investments by month and year
   const groupedInvestments = useMemo(() => {
@@ -137,7 +94,57 @@ const InvestmentDashboard = ({
     return previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
   }, [currentTotal, previousTotal]);
 
-// Update selected months when month keys change
+  // Calculate usable cash (excluding VIAC - 3A and Pilier 2a)
+  const usableCash = useMemo(() => {
+    if (!latestMonthData || latestMonthData.length === 0) {
+      return 0;
+    }
+
+    console.log('Calculating usableCash with data:', latestMonthData.map(inv => ({
+      name: inv.investment_name,
+      amount: inv.amount
+    })));
+
+    const filtered = latestMonthData.filter(inv =>
+      inv.investment_name !== 'VIAC - 3A' &&
+      inv.investment_name !== 'Pillier 2a'
+    );
+
+    console.log('Filtered investments:', filtered.length, 'out of', latestMonthData.length);
+
+    const total = filtered.reduce((sum, inv) => {
+      const amount = Number(inv.amount || 0);
+      console.log('Adding amount:', amount, 'from', inv.investment_name);
+      return sum + amount;
+    }, 0);
+
+    console.log('Usable cash total:', total);
+    return total;
+  }, [latestMonthData]);
+
+  const previousUsableCash = useMemo(() => {
+    const previousKey = sortedMonthKeys[sortedMonthKeys.length - 2];
+    if (!previousKey || !groupedInvestments[previousKey]) {
+      return 0;
+    }
+
+    const previousMonthData = groupedInvestments[previousKey];
+    return previousMonthData
+      .filter(inv =>
+        inv.investment_name !== 'VIAC - 3A' &&
+        inv.investment_name !== 'Pilier 2a'
+      )
+      .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+  }, [groupedInvestments, sortedMonthKeys]);
+
+  const usableCashPercentageChange = useMemo(() => {
+    if (!previousUsableCash || previousUsableCash === 0) {
+      return null;
+    }
+    return ((usableCash - previousUsableCash) / previousUsableCash) * 100;
+  }, [usableCash, previousUsableCash]);
+
+  // Update selected months when month keys change
   useEffect(() => {
     if (latestMonthKey) {
       setSelectedMonthAllocation(prevMonth => prevMonth || latestMonthKey);
@@ -234,6 +241,11 @@ const InvestmentDashboard = ({
     }
   };
 
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditData(null);
+  };
+
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this investment?')) {
       return;
@@ -277,394 +289,86 @@ const InvestmentDashboard = ({
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto">
         {/* Portfolio Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-2">Total Portfolio Value</h2>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold">
-                {formatCurrency(currentTotal)}
-              </p>
-              {percentageChange !== null && (
-                <span
-                  className={`flex items-center text-sm ${
-                    percentageChange >= 0 ? 'text-green-500' : 'text-red-500'
-                  }`}
-                >
-                  {percentageChange >= 0 ? <ArrowUpIcon size={16} /> : <ArrowDownIcon size={16} />}
-                  {Math.abs(percentageChange).toFixed(1)}%
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-2">Number of Investments</h2>
-            <p className="text-3xl font-bold">
-              {latestMonthData.length}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-2">Number of Providers</h2>
-            <p className="text-3xl font-bold">
-              {new Set(latestMonthData.map(inv => inv.provider)).size}
-            </p>
-          </div>
-        </div>
+        <PortfolioSummary
+          currentTotal={currentTotal}
+          usableCash={usableCash}
+          percentageChange={percentageChange}
+          usableCashPercentageChange={usableCashPercentageChange}
+          investmentCount={latestMonthData.length}
+          providerCount={new Set(latestMonthData.map(inv => inv.provider)).size}
+          formatCurrency={formatCurrency}
+        />
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Asset Allocation Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Asset Allocation</h2>
-              <div className="w-48">
-                <Select
-                  value={selectedMonthAllocation}
-                  onValueChange={setSelectedMonthAllocation}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedMonthKeys.map((monthKey) => (
-                      <SelectItem key={monthKey} value={monthKey}>
-                        {formatMonthDisplay(monthKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={typeData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(1)}%`
-                    }
-                  >
-                    {typeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={DASHBOARD_COLORS.allocation[index % DASHBOARD_COLORS.allocation.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value)}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-{/* Provider Distribution Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Provider Distribution</h2>
-              <div className="w-48">
-                <Select
-                  value={selectedMonthProvider}
-                  onValueChange={setSelectedMonthProvider}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedMonthKeys.map((monthKey) => (
-                      <SelectItem key={monthKey} value={monthKey}>
-                        {formatMonthDisplay(monthKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={providerData}
-                  margin={{ right: 30, left: 10 }}
-                >
-                  <XAxis dataKey="name" />
-                  <YAxis
-                    tickFormatter={formatValue}
-                    width={50}
-                  />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value)}
-                  />
-                  <Bar dataKey="value">
-                    {providerData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={DASHBOARD_COLORS.providers[index % DASHBOARD_COLORS.providers.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <AssetAllocationChart
+            typeData={typeData}
+            selectedMonth={selectedMonthAllocation}
+            onMonthChange={setSelectedMonthAllocation}
+            sortedMonthKeys={sortedMonthKeys}
+            formatMonthDisplay={formatMonthDisplay}
+            formatCurrency={formatCurrency}
+          />
+
+          <ProviderDistributionChart
+            providerData={providerData}
+            selectedMonth={selectedMonthProvider}
+            onMonthChange={setSelectedMonthProvider}
+            sortedMonthKeys={sortedMonthKeys}
+            formatMonthDisplay={formatMonthDisplay}
+            formatCurrency={formatCurrency}
+            formatValue={formatValue}
+          />
         </div>
 
         {/* Monthly Evolution Charts */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">Total Portfolio Evolution</h2>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={monthlyTotals}
-                  margin={{ right: 30, left: 10 }}
-                >
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={(date) => date.toLocaleString('default', { month: 'short', year: 'numeric' })}
-                  />
-                  <YAxis
-                    tickFormatter={formatValue}
-                    width={50}
-                  />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value)}
-                    labelFormatter={(date) => date.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke={DASHBOARD_COLORS.monthlyTrends[0]}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <PortfolioEvolutionChart
+            monthlyTotals={monthlyTotals}
+            formatCurrency={formatCurrency}
+            formatValue={formatValue}
+          />
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">Investment Types Evolution</h2>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={monthlyTypeData}
-                  margin={{ right: 30, left: 10 }}
-                >
-                  <XAxis dataKey="date" />
-                  <YAxis
-                    tickFormatter={formatValue}
-                    width={50}
-                  />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value)}
-                  />
-                  <Legend />
-                  {Object.keys(monthlyTypeData[0] || {})
-                    .filter(key => key !== 'date')
-                    .map((type, index) => (
-                      <Bar
-                        key={type}
-                        dataKey={type}
-                        stackId="a"
-                        fill={DASHBOARD_COLORS.monthlyTrends[index % DASHBOARD_COLORS.monthlyTrends.length]}
-                      />
-                    ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <InvestmentTypesEvolutionChart
+            monthlyTypeData={monthlyTypeData}
+            formatCurrency={formatCurrency}
+            formatValue={formatValue}
+          />
         </div>
 
-      {/* Current Month Investment Details */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">
-            Investment Details: {formatMonthDisplay(currentMonthKey)}
-          </h2>
-          {currentMonthData.length > 0 ? (
-            <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white">
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-semibold">Name</th>
-                    <th className="text-left p-2 font-semibold">Type</th>
-                    <th className="text-left p-2 font-semibold">Provider</th>
-                    <th className="text-right p-2 font-semibold">Amount</th>
-                    <th className="text-left p-2 font-semibold">Notes</th>
-                    <th className="text-right p-2 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentMonthData
-                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                    .map((investment) => (
-                      <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
-                        {editingId === investment.investment_id ? (
-                          // Edit mode
-                          <>
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                name="investment_name"
-                                value={editData?.investment_name || ''}
-                                onChange={handleEditChange}
-                                className="w-full px-2 py-1 border rounded"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <select
-                                name="investment_type"
-                                value={editData?.investment_type || ''}
-                                onChange={handleEditChange}
-                                className="w-full px-2 py-1 border rounded"
-                              >
-                                {INVESTMENT_TYPES.map(type => (
-                                  <option key={type} value={type}>
-                                    {type.replace('_', ' ').toUpperCase()}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                name="provider"
-                                value={editData?.provider || ''}
-                                onChange={handleEditChange}
-                                className="w-full px-2 py-1 border rounded"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                step="0.01"
-                                name="amount"
-                                value={editData?.amount || ''}
-                                onChange={handleEditChange}
-                                className="w-full px-2 py-1 border rounded text-right"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                name="notes"
-                                value={editData?.notes || ''}
-                                onChange={handleEditChange}
-                                className="w-full px-2 py-1 border rounded"
-                              />
-                            </td>
-                            <td className="p-2 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={handleSave}
-                                  className="p-1 text-green-600 hover:text-green-800"
-                                  title="Save"
-                                >
-                                  <Check size={16} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingId(null);
-                                    setEditData(null);
-                                  }}
-                                  className="p-1 text-gray-600 hover:text-gray-800"
-                                  title="Cancel"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </>
-                        ) : (
-                          // View mode
-                          <>
-                            <td className="p-2">{investment.investment_name}</td>
-                            <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
-                            <td className="p-2">{investment.provider}</td>
-                            <td className="text-right p-2">
-                              {formatCurrency(investment.amount)}
-                            </td>
-                            <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
-                            <td className="p-2 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => handleEdit(investment)}
-                                  className="p-1 text-blue-600 hover:text-blue-800"
-                                  title="Edit"
-                                >
-                                  <Pencil size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(investment.investment_id)}
-                                  className="p-1 text-red-600 hover:text-red-800"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No investments recorded for the current month yet
-            </div>
-          )}
-        </div>
+        {/* Current Month Investment Details */}
+        <InvestmentTable
+          investments={currentMonthData}
+          title={`Investment Details: ${formatMonthDisplay(currentMonthKey)}`}
+          editingId={editingId}
+          editData={editData}
+          onEdit={handleEdit}
+          onEditChange={handleEditChange}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
+          formatCurrency={formatCurrency}
+          formatMonthDisplay={formatMonthDisplay}
+          showDuplicateOnly={false}
+        />
 
         {/* Previous Month Investment Details */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">
-            Previous Month Investment Details: {formatMonthDisplay(prevMonthKey)}
-          </h2>
-          {prevMonthData.length > 0 ? (
-            <div className="overflow-y-auto" style={{maxHeight: '300px'}}>
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white">
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-semibold">Name</th>
-                    <th className="text-left p-2 font-semibold">Type</th>
-                    <th className="text-left p-2 font-semibold">Provider</th>
-                    <th className="text-right p-2 font-semibold">Amount</th>
-                    <th className="text-left p-2 font-semibold">Notes</th>
-                    <th className="text-right p-2 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {prevMonthData
-                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-                    .map((investment) => (
-                      <tr key={investment.investment_id} className="border-b hover:bg-gray-50">
-                        <td className="p-2">{investment.investment_name}</td>
-                        <td className="p-2 capitalize">{investment.investment_type.replace('_', ' ')}</td>
-                        <td className="p-2">{investment.provider}</td>
-                        <td className="text-right p-2">
-                          {formatCurrency(investment.amount)}
-                        </td>
-                        <td className="p-2 text-gray-600 text-sm">{investment.notes || '-'}</td>
-                        <td className="p-2 text-right">
-                          <button
-                            onClick={() => handleDuplicate(investment)}
-                            className="p-1 text-green-600 hover:text-green-800"
-                            title="Duplicate for current month"
-                          >
-                            <Copy size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No investments found for the previous month
-            </div>
-          )}
-        </div>
+        <InvestmentTable
+          investments={prevMonthData}
+          title={`Previous Month Investment Details: ${formatMonthDisplay(prevMonthKey)}`}
+          editingId={null}
+          editData={null}
+          onEdit={() => {}}
+          onEditChange={() => {}}
+          onSave={() => {}}
+          onCancel={() => {}}
+          onDelete={() => {}}
+          onDuplicate={handleDuplicate}
+          formatCurrency={formatCurrency}
+          formatMonthDisplay={formatMonthDisplay}
+          showDuplicateOnly={true}
+        />
       </div>
     </div>
   );
@@ -688,4 +392,3 @@ InvestmentDashboard.propTypes = {
 };
 
 export default InvestmentDashboard;
-
